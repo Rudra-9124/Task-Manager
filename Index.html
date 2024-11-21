@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Manager</title>
+</head>
+<body>
+    <form id="taskForm">
+        Title: <input type="text" id="title" name="title" placeholder="Enter task title" required /> <br/><br/>
+        Description: <textarea id="description" name="description" placeholder="Enter task description"></textarea> <br/><br/>
+        <button type="submit">Create Task</button>
+    </form>
+
+    <br>
+    <button id="viewTasksBtn">View All Tasks</button>
+    <h2>Tasks List</h2>
+    <ul id="taskList"></ul>
+
+    <!-- Edit Task Form (Initially Hidden) -->
+    <div id="editFormContainer" style="display: none;">
+        <h3>Edit Task</h3>
+        <form id="editTaskForm">
+            Title: <input type="text" id="editTitle" name="title" required /> <br/><br/>
+            Description: <textarea id="editDescription" name="description"></textarea> <br/><br/>
+            <button type="submit">Save Changes</button>
+            <button type="button" onclick="cancelEdit()">Cancel</button>
+        </form>
+    </div>
+
+    <script>
+        let editingTaskId = null;  // To store the ID of the task being edited
+        let tasksVisible = false;  // To keep track of the task list visibility
+
+        document.getElementById('taskForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const title = document.getElementById('title').value;
+            const description = document.getElementById('description').value;
+
+            const response = await fetch('http://localhost:3000/tasks', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ title, description }),
+            });
+
+            const result = await response.json();
+            console.log('Task created:', result);
+
+            // Optionally, you can refresh the task list after creating a new task
+            if (tasksVisible) {
+                fetchTasks();
+            }
+        });
+
+        document.getElementById('viewTasksBtn').addEventListener('click', () => {
+            tasksVisible = !tasksVisible;  // Toggle task visibility
+            if (tasksVisible) {
+                fetchTasks();  // Show tasks
+            } else {
+                // Clear the list when hiding tasks
+                document.getElementById('taskList').innerHTML = '';
+            }
+        });
+
+        // Function to fetch and display tasks
+        async function fetchTasks() {
+            const response = await fetch('http://localhost:3000/tasks');
+            const tasks = await response.json();
+
+            // Clear the previous list
+            const taskList = document.getElementById('taskList');
+            taskList.innerHTML = '';
+
+            tasks.forEach(task => {
+                const li = document.createElement('li');
+                li.textContent = `${task.title}: ${task.description}`;
+
+                // Add Edit button
+                const editBtn = document.createElement('button');
+                editBtn.textContent = 'Edit';
+                editBtn.addEventListener('click', () => editTask(task));
+                li.appendChild(editBtn);
+
+                // Add Mark as Completed button
+                if (!task.completed) {
+                    const markCompleteBtn = document.createElement('button');
+                    markCompleteBtn.textContent = 'Mark as Completed';
+                    markCompleteBtn.addEventListener('click', () => markAsCompleted(task._id));
+                    li.appendChild(markCompleteBtn);
+                }
+
+                // Add Delete button
+                const deleteBtn = document.createElement('button');
+                deleteBtn.textContent = 'Delete';
+                deleteBtn.addEventListener('click', () => deleteTask(task._id));
+                li.appendChild(deleteBtn);
+
+                // Strike-through for completed tasks
+                if (task.completed) {
+                    li.style.textDecoration = 'line-through'; // Strike-through for completed tasks
+                }
+
+                taskList.appendChild(li);
+            });
+        }
+
+        // Function to mark a task as completed
+        async function markAsCompleted(taskId) {
+            const response = await fetch(`http://localhost:3000/tasks/${taskId}/complete`, {
+                method: 'PUT',
+            });
+
+            const updatedTask = await response.json();
+            console.log('Task marked as completed:', updatedTask);
+
+            // Refresh the task list after updating the task
+            fetchTasks();
+        }
+
+        // Function to edit a task
+        function editTask(task) {
+            editingTaskId = task._id;  // Store the task ID
+            document.getElementById('editTitle').value = task.title;
+            document.getElementById('editDescription').value = task.description;
+            document.getElementById('editFormContainer').style.display = 'block';  // Show the edit form
+        }
+
+        // Function to save the edited task
+        document.getElementById('editTaskForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const title = document.getElementById('editTitle').value;
+            const description = document.getElementById('editDescription').value;
+
+            const response = await fetch(`http://localhost:3000/tasks/${editingTaskId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ title, description }),
+            });
+
+            const updatedTask = await response.json();
+            console.log('Task updated:', updatedTask);
+
+            // Hide the edit form and refresh the task list
+            document.getElementById('editFormContainer').style.display = 'none';
+            fetchTasks();
+        });
+
+        // Function to cancel the edit and hide the form
+        function cancelEdit() {
+            document.getElementById('editFormContainer').style.display = 'none';
+        }
+
+        // Function to delete a task
+        async function deleteTask(taskId) {
+            const response = await fetch(`http://localhost:3000/tasks/${taskId}`, {
+                method: 'DELETE',
+            });
+
+            if (response.ok) {
+                console.log('Task deleted successfully');
+                fetchTasks();  // Refresh the task list after deletion
+            } else {
+                console.error('Error deleting task');
+            }
+        }
+    </script>
+</body>
+</html>
